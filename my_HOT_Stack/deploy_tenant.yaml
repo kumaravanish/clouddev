@@ -1,0 +1,188 @@
+heat_template_version: newton
+
+description: tuxfixer.com - deploy project tenant and launch instances
+
+parameters:
+ tenant_id:
+  type: string
+  description: tenant id
+
+ public_net_name:
+  type: string
+  description: public/external net name
+  default: pub_net
+
+ tenant_net_name:
+  type: string
+  description: tenant internal net name
+  default: int_net
+
+ tenant_subnet_name:
+  type: string
+  description: tenant internal subnet name
+  default: int_subnet
+
+ tenant_subnet_cidr:
+  type: string
+  description: CIDR of tenant internal subnet name
+  default: 192.168.3.0/24
+
+ tenant_subnet_gateway:
+  type: string
+  description: gateway for tenant internal subnet
+  default: 192.168.3.1
+
+ tenant_router_name:
+  type: string
+  description: tenant router name
+  default: tenant_router
+
+ sec_group_name:
+  type: string
+  description: security group name
+  default: sec_group
+
+ flavor_name:
+  type: string
+  description: flavor name
+  default: m1.tiny
+
+ image_name:
+  type: string
+  description: image name
+  default: cirros_tiny
+
+ instance1_name:
+  type: string
+  description: first instance name
+  default: instance1
+
+ instance1_port_name:
+  type: string
+  description: first instance port name
+  default: inst1_port
+
+ instance1_port_ip:
+  type: string
+  description: first instance IP address
+  default: 192.168.3.10
+
+ instance2_name:
+  type: string
+  description: second instance name
+  default: instance2
+
+ instance2_port_name:
+  type: string
+  description: second instance port name
+  default: inst2_port
+
+ instance2_port_ip:
+  type: string
+  description: second instance IP address
+  default: 192.168.3.11
+
+resources:
+ tenant_net:
+  type: OS::Neutron::Net
+  properties:
+   name: { get_param: tenant_net_name }
+   tenant_id: { get_param: tenant_id }
+
+ tenant_subnet:
+  type: OS::Neutron::Subnet
+  properties:
+   name: { get_param: tenant_subnet_name }
+   network_id: { get_resource: tenant_net }
+   cidr: { get_param: tenant_subnet_cidr }
+   gateway_ip: { get_param: tenant_subnet_gateway }
+   enable_dhcp: True
+   tenant_id: { get_param: tenant_id }
+
+ tenant_router:
+  type: OS::Neutron::Router
+  properties:
+   name: { get_param: tenant_router_name }
+   external_gateway_info: 
+    network: { get_param: public_net_name }
+   value_specs:
+    tenant_id: { get_param: tenant_id }
+
+ tenant_router_interface:
+  type: OS::Neutron::RouterInterface
+  properties:
+   router_id: { get_resource: tenant_router }
+   subnet_id: { get_resource: tenant_subnet }
+
+ security_group:
+  type: OS::Neutron::SecurityGroup
+  properties:
+   name: { get_param: sec_group_name }
+   description: ICMP and all IP ports
+   rules:
+    - protocol: icmp
+    - protocol: tcp
+      port_range_min: 1
+      port_range_max: 65535
+
+ instance1_port:
+  type: OS::Neutron::Port
+  properties:
+    name: { get_param: instance1_port_name }
+    network_id: { get_resource: tenant_net }
+    fixed_ips:
+     - subnet_id: { get_resource: tenant_subnet }
+       ip_address: { get_param: instance1_port_ip }
+    security_groups: [{ get_resource: security_group }]
+
+ instance1:
+  type: OS::Nova::Server
+  properties:
+   name: { get_param: instance1_name }
+   image: { get_param: image_name }
+   flavor: { get_param: flavor_name }
+   networks:
+    - port: { get_resource: instance1_port }
+      subnet: { get_resource: tenant_subnet }
+
+ instance1_floating_ip:
+  type: OS::Neutron::FloatingIP
+  properties:
+   floating_network: { get_param: public_net_name }
+
+ instance1_floating_ip_associate:
+  type: OS::Neutron::FloatingIPAssociation
+  properties:
+   floatingip_id: { get_resource: instance1_floating_ip }
+   port_id: { get_resource: instance1_port }
+
+ instance2_port:
+  type: OS::Neutron::Port
+  properties:
+   name: { get_param: instance2_port_name }
+   network_id: { get_resource: tenant_net }
+   fixed_ips:
+    - subnet_id: { get_resource: tenant_subnet }
+      ip_address: { get_param: instance2_port_ip }
+   security_groups: [{ get_resource: security_group }]
+
+ instance2:
+  type: OS::Nova::Server
+  properties:
+   name: { get_param: instance2_name }
+   image: { get_param: image_name }
+   flavor: { get_param: flavor_name }
+   networks:
+    - port: { get_resource: instance2_port }
+      subnet: { get_resource: tenant_subnet }
+
+ instance2_floating_ip:
+  type: OS::Neutron::FloatingIP
+  properties:
+   floating_network: { get_param: public_net_name }
+
+ instance2_floating_ip_associate:
+  type: OS::Neutron::FloatingIPAssociation
+  properties:
+   floatingip_id: { get_resource: instance2_floating_ip }
+   port_id: { get_resource: instance2_port }

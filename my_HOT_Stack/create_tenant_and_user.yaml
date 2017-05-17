@@ -1,0 +1,43 @@
+heat_template_version: newton
+
+description: tuxfixer.com - create project tenant and assign user / member
+
+parameters:
+ tenant_name:
+  type: string
+  description: tenant name
+
+ tenant_user_role:
+  type: string
+  description: tenant user roles
+  default: heat_stack_owner
+
+ tenant_user:
+  type: string
+  description: tenant user
+
+ tenant_user_password:
+  type: string
+  description: tenant user password
+
+
+
+resources:
+ tenant:
+  type: OS::Keystone::Project
+  properties:
+   name: { get_param: tenant_name }
+   domain: default
+ # description: Example project tenant
+
+ user:
+  type: OS::Keystone::User
+  properties:
+   name: { get_param: tenant_user }
+   domain: default
+#  description: Example project tenant user
+   default_project: { get_resource: tenant }
+   password: { get_param: tenant_user_password }
+   roles:
+    - role: { get_param: tenant_user_role }
+      project: { get_resource: tenant }
